@@ -5,162 +5,158 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
 from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer
 import wave
 
-class AudioRecorder(QThread):
-    data_ready = pyqtSignal(np.ndarray)
+class SesKaydedici(QThread):
+    veri_hazir = pyqtSignal(np.ndarray)
 
     def __init__(self):
         super().__init__()
         self.samplerate = 44100
-        self.frames = []
-        self.is_recording = False
+        self.kareler = []
+        self.kayit_var = False
 
     def run(self):
-        self.is_recording = True
+        self.kayit_var = True
         with sd.InputStream(samplerate=self.samplerate, channels=1, dtype='int16', callback=self.callback):
-            while self.is_recording:
+            while self.kayit_var:
                 sd.sleep(100)
 
     def callback(self, indata, frames, time, status):
         if status:
             print(status)
         if indata.size > 0:
-            self.frames.append(indata.copy())
-            self.data_ready.emit(indata)
+            self.kareler.append(indata.copy())
+            self.veri_hazir.emit(indata)
 
-    def stop(self):
-        self.is_recording = False
+    def durdur(self):
+        self.kayit_var = False
 
-class AudioLevelMonitor(QMainWindow):
+class SesSeviyeGozlemcisi(QMainWindow):
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle("Ses Kaydedici")
         self.setGeometry(100, 100, 600, 400)
 
-        # Stil dosyasını yükleyin
         self.load_stylesheet("style.css")
 
-        main_layout = QVBoxLayout()
+        ana_duzen = QVBoxLayout()
 
-        recording_group = QGroupBox("  ")
-        recording_layout = QVBoxLayout()
+        kayit_grubu = QGroupBox("  ")
+        kayit_duzeni = QVBoxLayout()
 
-        self.record_button = QPushButton("Kaydı Başlat")
-        self.record_button.clicked.connect(self.start_recording)
+        self.kayit_butonu = QPushButton("Kaydı Başlat")
+        self.kayit_butonu.clicked.connect(self.kayit_baslat)
 
-        self.toggle_button = QPushButton("Durdur")
-        self.toggle_button.clicked.connect(self.toggle_recording)
-        self.toggle_button.setEnabled(False)
+        self.toggle_butonu = QPushButton("Durdur")
+        self.toggle_butonu.clicked.connect(self.kayit_toggle)
+        self.toggle_butonu.setEnabled(False)
 
-        self.save_button = QPushButton("Kaydı Kaydet")
-        self.save_button.clicked.connect(self.save_recording)
-        self.save_button.setEnabled(False)
+        self.kaydet_butonu = QPushButton("Kaydı Kaydet")
+        self.kaydet_butonu.clicked.connect(self.kaydi_kaydet)
+        self.kaydet_butonu.setEnabled(False)
 
-        self.reset_button = QPushButton("Reset")
-        self.reset_button.clicked.connect(self.reset_recording)
-        self.reset_button.setEnabled(False)
+        self.sifirla_butonu = QPushButton("Sıfırla")
+        self.sifirla_butonu.clicked.connect(self.kaydi_sifirla)
+        self.sifirla_butonu.setEnabled(False)
 
-        # Kayıt süresi etiketi
-        self.time_label = QLabel("00:00:00")
-        self.time_label.setAlignment(Qt.AlignCenter)
-        self.time_label.setStyleSheet("font-size: 24px;")  # Boyutu büyüt
+        self.zaman_label = QLabel("00:00:00")
+        self.zaman_label.setAlignment(Qt.AlignCenter)
+        self.zaman_label.setStyleSheet("font-size: 24px;")
 
-        recording_layout.addWidget(self.record_button)
-        recording_layout.addWidget(self.toggle_button)
-        recording_layout.addWidget(self.save_button)
-        recording_layout.addWidget(self.reset_button)
-        recording_layout.addWidget(self.time_label)
-        recording_group.setLayout(recording_layout)
+        kayit_duzeni.addWidget(self.kayit_butonu)
+        kayit_duzeni.addWidget(self.toggle_butonu)
+        kayit_duzeni.addWidget(self.kaydet_butonu)
+        kayit_duzeni.addWidget(self.sifirla_butonu)
+        kayit_duzeni.addWidget(self.zaman_label)
+        kayit_grubu.setLayout(kayit_duzeni)
 
-        main_layout.addWidget(recording_group)
+        ana_duzen.addWidget(kayit_grubu)
 
-        container = QWidget()
-        container.setLayout(main_layout)
-        self.setCentralWidget(container)
+        konteyner = QWidget()
+        konteyner.setLayout(ana_duzen)
+        self.setCentralWidget(konteyner)
 
-        self.audio_recorder = AudioRecorder()
-        self.audio_recorder.data_ready.connect(self.update_slider)
+        self.ses_kaydedici = SesKaydedici()
+        self.ses_kaydedici.veri_hazir.connect(self.slideri_guncelle)
 
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_time)
-        self.recording_time = 0
+        self.zamanlayici = QTimer(self)
+        self.zamanlayici.timeout.connect(self.zaman_guncelle)
+        self.kayit_suresi = 0
 
     def load_stylesheet(self, filename):
         with open(filename, "r") as f:
             stylesheet = f.read()
             self.setStyleSheet(stylesheet)
 
-    def start_recording(self):
-        self.record_button.setEnabled(False)
-        self.toggle_button.setEnabled(True)
-        self.save_button.setEnabled(False)
-        self.reset_button.setEnabled(False)
+    def kayit_baslat(self):
+        self.kayit_butonu.setEnabled(False)
+        self.toggle_butonu.setEnabled(True)
+        self.kaydet_butonu.setEnabled(False)
+        self.sifirla_butonu.setEnabled(False)
 
-        self.audio_recorder.start()
-        self.recording_time = 0
-        self.timer.start(1000)
+        self.ses_kaydedici.start()
+        self.kayit_suresi = 0
+        self.zamanlayici.start(1000)
 
-    def toggle_recording(self):
-        if self.audio_recorder.is_recording:
-            self.audio_recorder.stop()
-            self.timer.stop()
-            self.toggle_button.setText("Devam Et")
-            self.save_button.setEnabled(True)
-            self.reset_button.setEnabled(True)
+    def kayit_toggle(self):
+        if self.ses_kaydedici.kayit_var:
+            self.ses_kaydedici.durdur()
+            self.zamanlayici.stop()
+            self.toggle_butonu.setText("Devam Et")
+            self.kaydet_butonu.setEnabled(True)
+            self.sifirla_butonu.setEnabled(True)
         else:
-            self.audio_recorder.start()
-            self.timer.start(1000)
-            self.toggle_button.setText("Durdur")
+            self.ses_kaydedici.start()
+            self.zamanlayici.start(1000)
+            self.toggle_butonu.setText("Durdur")
 
-    def update_slider(self, frames):
-        if frames.size > 0:
-            rms = np.sqrt(np.mean(np.square(frames)))  # RMS hesaplama
-            # Ses seviyesini 0-1000 aralığına normalize et
+    def slideri_guncelle(self, kareler):
+        if kareler.size > 0:
+            rms = np.sqrt(np.mean(np.square(kareler)))
             if rms > 0:
-                level = int(np.clip(rms * 1000 / np.iinfo(np.int16).max, 0, 1000))
+                seviye = int(np.clip(rms * 1000 / np.iinfo(np.int16).max, 0, 1000))
             else:
-                level = 0
+                seviye = 0
 
-    def update_time(self):
-        self.recording_time += 1
-        hours = self.recording_time // 3600
-        minutes = (self.recording_time % 3600) // 60
-        seconds = self.recording_time % 60
-        self.time_label.setText(f"{hours:02}:{minutes:02}:{seconds:02}")
+    def zaman_guncelle(self):
+        self.kayit_suresi += 1
+        saat = self.kayit_suresi // 3600
+        dakika = (self.kayit_suresi % 3600) // 60
+        saniye = self.kayit_suresi % 60
+        self.zaman_label.setText(f"{saat:02}:{dakika:02}:{saniye:02}")
 
-    def save_recording(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Kaydet", "", "WAV Files (*.wav)")
-        if file_path:
-            with wave.open(file_path, 'wb') as wf:
-                wf.setnchannels(1)  # Mono ses
-                wf.setsampwidth(2)  # 16-bit
-                wf.setframerate(self.audio_recorder.samplerate)  # 44.1 kHz
-                wf.writeframes(b''.join(self.audio_recorder.frames))
+    def kaydi_kaydet(self):
+        dosya_yolu, _ = QFileDialog.getSaveFileName(self, "Kaydet", "", "WAV Files (*.wav)")
+        if dosya_yolu:
+            with wave.open(dosya_yolu, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(self.ses_kaydedici.samplerate)
+                wf.writeframes(b''.join(self.ses_kaydedici.kareler))
 
-            print(f"Kaydedildi: {file_path}")
+            print(f"Kaydedildi: {dosya_yolu}")
 
-    def reset_recording(self):
-        self.audio_recorder.frames = []
-        self.audio_recorder.stop()  # Kayıt varsa durdur
-        self.timer.stop()  # Zamanlayıcıyı durdur
-        self.recording_time = 0  # Süreyi sıfırla
-        self.time_label.setText("00:00:00")
+    def kaydi_sifirla(self):
+        self.ses_kaydedici.kareler = []
+        self.ses_kaydedici.durdur()
+        self.zamanlayici.stop()
+        self.kayit_suresi = 0
+        self.zaman_label.setText("00:00:00")
 
-        # Butonları başlangıç hallerine döndür
-        self.record_button.setEnabled(True)
-        self.toggle_button.setEnabled(False)
-        self.toggle_button.setText("Durdur")
-        self.save_button.setEnabled(False)
-        self.reset_button.setEnabled(False)
+        self.kayit_butonu.setEnabled(True)
+        self.toggle_butonu.setEnabled(False)
+        self.toggle_butonu.setText("Durdur")
+        self.kaydet_butonu.setEnabled(False)
+        self.sifirla_butonu.setEnabled(False)
 
         print("Kayıt sıfırlandı.")
 
     def closeEvent(self, event):
-        self.audio_recorder.stop()
+        self.ses_kaydedici.durdur()
         event.accept()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = AudioLevelMonitor()
-    window.show()
+    pencere = SesSeviyeGozlemcisi()
+    pencere.show()
     sys.exit(app.exec_())
